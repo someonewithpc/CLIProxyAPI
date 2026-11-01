@@ -2700,3 +2700,33 @@ func TestExtractExplicitSessionIDs_EnhancedHarnesses(t *testing.T) {
 		t.Fatalf("subagent did not inherit parent task credential: got %s, want %s", subagentAuth.ID, parentAuth.ID)
 	}
 }
+
+func TestModelCooldownErrorMessageCarriesReset(t *testing.T) {
+	t.Parallel()
+
+	before := time.Now().UTC().Truncate(time.Second)
+	err := NewModelCooldownError("claude-opus-5-5", "", 2*time.Hour)
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if errUnmarshal := json.Unmarshal([]byte(err.Error()), &body); errUnmarshal != nil {
+		t.Fatalf("unmarshal error body: %v", errUnmarshal)
+	}
+	const prefix = "All credentials for model claude-opus-5-5 are cooling down, resets at "
+	if !strings.HasPrefix(body.Error.Message, prefix) {
+		t.Fatalf("message = %q, want prefix %q", body.Error.Message, prefix)
+	}
+	at, errParse := time.Parse(time.RFC3339, strings.TrimPrefix(body.Error.Message, prefix))
+	if errParse != nil {
+		t.Fatalf("parse reset: %v", errParse)
+	}
+	if d := at.Sub(before); d < 2*time.Hour || d > 2*time.Hour+5*time.Second {
+		t.Fatalf("reset %s is %s after %s, want about 2h", at, d, before)
+	}
+
+	if got := NewModelCooldownError("m", "", 0).Error(); strings.Contains(got, "resets at") {
+		t.Fatalf("zero reset still names one: %s", got)
+	}
+}

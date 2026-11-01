@@ -138,6 +138,11 @@ func (e *modelCooldownError) Error() string {
 	} else {
 		displayDuration = displayDuration.Round(time.Second)
 	}
+	// Clients such as Claude Code show only the message, not Retry-After or
+	// reset_seconds, so the message carries the reset too.
+	if e.resetIn > 0 {
+		message = fmt.Sprintf("%s, resets at %s", message, time.Now().Add(e.resetIn).UTC().Format(time.RFC3339))
+	}
 	errorBody := map[string]any{
 		"code":          "model_cooldown",
 		"message":       message,
