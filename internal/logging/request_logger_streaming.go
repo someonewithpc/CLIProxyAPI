@@ -58,6 +58,9 @@ type FileStreamingLogWriter struct {
 	// responseHeaders stores the response headers.
 	responseHeaders map[string][]string
 
+	// redactHeaders fully redacts credential response headers.
+	redactHeaders bool
+
 	// apiRequest stores the upstream API request data.
 	apiRequest []byte
 
@@ -119,6 +122,7 @@ func (w *FileStreamingLogWriter) WriteStatus(status int, headers map[string][]st
 			copy(headerValues, values)
 			w.responseHeaders[key] = headerValues
 		}
+		w.responseHeaders = redactHeadersIf(w.redactHeaders, w.responseHeaders)
 	}
 	w.statusWritten = true
 	return nil

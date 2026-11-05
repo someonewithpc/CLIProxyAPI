@@ -239,6 +239,47 @@ func MaskSensitiveHeaderValue(key, value string) string {
 	}
 }
 
+// RedactedHeaderValue replaces credential header values in redacted request logs.
+const RedactedHeaderValue = "[REDACTED]"
+
+// RedactSensitiveHeaderValue replaces credential header values with RedactedHeaderValue.
+// Unlike MaskSensitiveHeaderValue it keeps no characters of the secret, and it also covers
+// cookies. Authorization keeps its scheme ("Bearer [REDACTED]").
+func RedactSensitiveHeaderValue(key, value string) string {
+	lowerKey := strings.ToLower(strings.TrimSpace(key))
+	switch {
+	case strings.Contains(lowerKey, "authorization"):
+		if parts := strings.SplitN(strings.TrimSpace(value), " ", 2); len(parts) == 2 {
+			return parts[0] + " " + RedactedHeaderValue
+		}
+		return RedactedHeaderValue
+	case strings.Contains(lowerKey, "api-key"),
+		strings.Contains(lowerKey, "apikey"),
+		strings.Contains(lowerKey, "token"),
+		strings.Contains(lowerKey, "secret"),
+		strings.Contains(lowerKey, "cookie"):
+		return RedactedHeaderValue
+	default:
+		return value
+	}
+}
+
+// RedactSensitiveHeaders returns a copy of headers with RedactSensitiveHeaderValue applied.
+func RedactSensitiveHeaders(headers map[string][]string) map[string][]string {
+	if headers == nil {
+		return nil
+	}
+	out := make(map[string][]string, len(headers))
+	for key, values := range headers {
+		redacted := make([]string, len(values))
+		for i, value := range values {
+			redacted[i] = RedactSensitiveHeaderValue(key, value)
+		}
+		out[key] = redacted
+	}
+	return out
+}
+
 // MaskSensitiveQuery masks sensitive query parameters, e.g. auth_token, within the raw query string.
 func MaskSensitiveQuery(raw string) string {
 	if raw == "" {

@@ -67,6 +67,8 @@ func (l *FileRequestLogger) logRequestWithSources(url, method string, requestHea
 	if !l.enabled && !force {
 		return nil
 	}
+	requestHeaders = redactHeadersIf(l.redactHeaders, requestHeaders)
+	responseHeaders = redactHeadersIf(l.redactHeaders, responseHeaders)
 
 	if l.homeEnabled && l.enabled {
 		responseToWrite, decompressErr := l.decompressResponse(responseHeaders, response)
@@ -196,6 +198,7 @@ func (l *FileRequestLogger) LogStreamingRequest(url, method string, headers map[
 	if !l.enabled {
 		return &NoOpStreamingLogWriter{}, nil
 	}
+	headers = redactHeadersIf(l.redactHeaders, headers)
 
 	if l.homeEnabled {
 		client := currentHomeRequestLogClient()
@@ -246,6 +249,7 @@ func (l *FileRequestLogger) LogStreamingRequest(url, method string, headers map[
 		chunkChan:        make(chan []byte, 100), // Buffered channel for async writes
 		closeChan:        make(chan struct{}),
 		errorChan:        make(chan error, 1),
+		redactHeaders:    l.redactHeaders,
 	}
 
 	// Start async writer goroutine

@@ -1124,6 +1124,15 @@ observability:
     # Record proxy request/response logs. Management requests are excluded.
     request-log: false
 
+    # With request-log on, fully log only requests that carry a non-empty header with this
+    # name (case-insensitive). Other requests get error-only logs. Empty logs every request.
+    request-log-only-header: ""
+
+    # Directory for full logs of header-gated requests, one subdirectory per header value.
+    # Relative paths resolve against the config directory. The log size limit does not
+    # apply here. Empty keeps them in the logs directory.
+    request-log-dir: ""
+
   usage:
     # When false, disable in-memory usage statistics aggregation
     usage-statistics-enabled: false

@@ -6,6 +6,7 @@ package logging
 import (
 	"fmt"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/interfaces"
@@ -18,6 +19,8 @@ const (
 	APIResponseSourceContextKey          = "API_RESPONSE_SOURCE"
 	APIResponseCapturedContextKey        = "API_RESPONSE_CAPTURED"
 	APIWebsocketTimelineSourceContextKey = "API_WEBSOCKET_TIMELINE_SOURCE"
+	RequestLogFullContextKey             = "REQUEST_LOG_FULL"
+	RequestLogRedactHeadersContextKey    = "REQUEST_LOG_REDACT_HEADERS"
 )
 
 // DeferredAPIRequest builds an upstream request log only when an error log needs it.
@@ -140,6 +143,15 @@ type FileRequestLogger struct {
 	// logsDir is the directory where log files are stored.
 	logsDir string
 
+	// configDir resolves a relative request-log-dir.
+	configDir string
+
+	// scope holds the request-log-only-header and request-log-dir settings.
+	scope atomic.Pointer[requestLogScope]
+
+	// redactHeaders fully redacts credential headers; set on header-gated loggers.
+	redactHeaders bool
+
 	// errorLogsMaxFiles limits the number of error log files retained.
 	errorLogsMaxFiles int
 
@@ -168,6 +180,7 @@ func NewFileRequestLogger(enabled bool, logsDir string, configDir string, errorL
 	return &FileRequestLogger{
 		enabled:           enabled,
 		logsDir:           logsDir,
+		configDir:         configDir,
 		errorLogsMaxFiles: errorLogsMaxFiles,
 		homeEnabled:       false,
 	}

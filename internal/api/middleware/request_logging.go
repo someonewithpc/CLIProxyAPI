@@ -46,7 +46,8 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 			return
 		}
 
-		loggerEnabled := logger.IsEnabled()
+		requestLogger := scopeRequestLogger(c, logger)
+		loggerEnabled := requestLogger.IsEnabled()
 		captureBody := shouldCaptureRequestBody(loggerEnabled, c.Request)
 
 		// Capture request information
@@ -59,13 +60,13 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 		}
 
 		// Create response writer wrapper
-		wrapper := NewResponseWriterWrapper(c.Writer, logger, requestInfo)
+		wrapper := NewResponseWriterWrapper(c.Writer, requestLogger, requestInfo)
 		if !loggerEnabled {
 			wrapper.logOnErrorOnly = true
 		}
 		c.Writer = wrapper
-		attachRequestLogSources(c, logger, loggerEnabled)
-		attachDeferredRequestBodyCapture(c.Request, logger, requestInfo, loggerEnabled, captureBody)
+		attachRequestLogSources(c, requestLogger, loggerEnabled)
+		attachDeferredRequestBodyCapture(c.Request, requestLogger, requestInfo, loggerEnabled, captureBody)
 
 		// Process the request
 		c.Next()
@@ -76,6 +77,28 @@ func RequestLoggingMiddleware(logger logging.RequestLogger) gin.HandlerFunc {
 			// In a real implementation, you might want to use a proper logger here
 		}
 	}
+}
+
+// scopeRequestLogger applies request-log-only-header. When the logger picks a
+// per-request logger, the choice is stored in c so the cfg.RequestLog checks in
+// handlers and executors follow it.
+func scopeRequestLogger(c *gin.Context, logger logging.RequestLogger) logging.RequestLogger {
+	scoper, ok := logger.(logging.RequestScopedLogger)
+	if !ok {
+		return logger
+	}
+	requestLogger := scoper.ForRequest(c.Request.Header)
+	if requestLogger == nil {
+		return logger
+	}
+	if requestLogger == logger {
+		return logger
+	}
+	c.Set(logging.RequestLogFullContextKey, requestLogger.IsEnabled())
+	if redactor, ok := requestLogger.(interface{ RedactsHeaders() bool }); ok && redactor.RedactsHeaders() {
+		c.Set(logging.RequestLogRedactHeadersContextKey, true)
+	}
+	return requestLogger
 }
 
 type fileBodySourceFactory interface {
